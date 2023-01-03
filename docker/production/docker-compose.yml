@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  React.Typescript.Vite:
+    build:
+      context: ../../
+      dockerfile: docker/production/Dockerfile
+    image: react.typescript.vite.production
+    ports:
+      - '3000:3000'
