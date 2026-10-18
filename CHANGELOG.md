@@ -4,19 +4,7 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
-### Added
-
-- Release pipeline (`.github/workflows/release.yml`): pushing a new `package.json` version to the `release` branch — or running the workflow with a version bump — runs the quality gate, tags `vX.Y.Z`, publishes a GitHub release from the matching changelog section, stages the version on npm through trusted publishing (OIDC, no stored token, provenance included) for a maintainer to approve with 2FA — or publishes it directly when `PUBLISH_MODE` is `direct` — and appends the Claude deployment report. Versions already live on npm are skipped, and a hand-published GitHub release publishes its tag too.
-
-### Changed
-
-- Repository URLs use the canonical lowercase owner `luigi-dv`, which npm provenance requires to match the source repository.
-
-### Removed
-
-- `npm-publish.yml`, superseded by the release pipeline.
-
-## [0.2.0] - 2026-10-18
+## [2.0.0] - 2026-10-18
 
 ### Added
 
@@ -30,9 +18,11 @@ All notable changes to this project are documented in this file. The format foll
 - Quality tooling: ESLint 10 flat config (typescript-eslint, react-hooks 7, react-refresh), Prettier with Tailwind class sorting, `.editorconfig`, `.nvmrc`, `npm run check` quality gate, `@testing-library/jest-dom`, v8 coverage.
 - JSON schema for `rtv.config.json`; tests for the CLI libraries and every design template.
 - Documentation: new README, `docs/` guides, CONTRIBUTING, MIT LICENSE file.
+- Release pipeline (`.github/workflows/release.yml`): pushing a new `package.json` version to the `release` branch — or running the workflow with a version bump — runs the quality gate, tags `vX.Y.Z`, publishes a GitHub release from the matching changelog section, stages the version on npm through trusted publishing (OIDC, no stored token, provenance included) for a maintainer to approve with 2FA — or publishes it directly when `PUBLISH_MODE` is `direct` — and appends the Claude deployment report. Versions already live on npm are skipped, and a hand-published GitHub release publishes its tag too.
 
 ### Changed
 
+- Versioned **2.0.0** because a `1.0.0` was already published to npm in 2023 and this release is a complete redesign of the package (CLI toolkit, Node ≥ 22.12); `0.2.0` was never published.
 - Toolchain upgraded: Vite 3 → 8, Vitest 0.26 → 5, TypeScript 4.6 → 5.9, React 18 → 19, Tailwind 3.2 → 3.4, Headless UI 1 → 2, Testing Library 13 → 16, Node ≥ 22.12 (`.nvmrc` 24).
 - `tsconfig.json` is now a solution file referencing `tsconfig.app.json` (with the alias `paths`) and `tsconfig.node.json`; `build` runs `tsc -b && vite build`.
 - Path aliases are declared once in `rtv.config.json` and read by `vite.config.ts`; `@/*` and `@pages`, `@hooks`, `@utils` aliases were added.
@@ -40,7 +30,9 @@ All notable changes to this project are documented in this file. The format foll
 - CI: Node 22/24 matrix running `npm run check` + build, plus an architecture-switch smoke test; npm publish with provenance and an optional Claude release report.
 - Docker: Node 24 images, dev compose with hot-reload volumes, production image now a multi-stage build served by nginx with SPA fallback and asset caching.
 - `package.json`: `type: module`, `bin`, `files`, `engines`, MIT license (matches the README badge), richer keywords.
+- Repository URLs use the canonical lowercase owner `luigi-dv`, which npm provenance requires to match the source repository.
 
 ### Removed
 
 - `cssnano` (Vite already minifies CSS on build).
+- `npm-publish.yml`, superseded by the release pipeline.
