@@ -158,9 +158,15 @@ Releases are driven by the **`release` branch** and the version in `package.json
 
 1. Bump the version and move the **Unreleased** changelog entries into a dated section: `npm version minor --no-git-tag-version`, edit `CHANGELOG.md`, commit `chore(release): vX.Y.Z`.
 2. Merge (or push) that commit to the `release` branch.
-3. The pipeline runs the quality gate and build, tags `vX.Y.Z`, publishes a GitHub release whose notes are the matching changelog section, publishes to npm with provenance and, when `ANTHROPIC_API_KEY` is set, appends the Claude deployment report to the release.
+3. The pipeline runs the quality gate and build, **stages** the version on npm (`npm stage publish`, uploaded with provenance but not public yet), tags `vX.Y.Z`, publishes a GitHub release whose notes are the matching changelog section plus the npm status and, when `ANTHROPIC_API_KEY` is set, appends the Claude deployment report.
+4. A maintainer reviews the staged version and makes it live with 2FA — the exact commands are in the job summary and the release notes:
 
-A push whose version is already on npm does nothing, so the branch can receive any commit safely. You can also run the workflow by hand (Actions → Release → Run workflow) with a `patch`, `minor`, `major` or `prerelease` bump: it commits the new version on the branch and releases it. Pre-release versions (`1.2.0-next.0`) publish under the `next` dist-tag. Publishing uses **npm trusted publishing** (OIDC): register a trusted publisher on npmjs.com for this repository (GitHub Actions · `luigi-dv/react-ts-vite` · workflow `release.yml` · environment `release` · allow `npm publish`) and no npm token is ever stored in GitHub; provenance is generated automatically. The only optional secret is `ANTHROPIC_API_KEY`. To release from another branch, change `branches: [release]` at the top of the workflow.
+   ```bash
+   npm stage view <stage-id>       # inspect; npm stage download <stage-id> fetches the tarball
+   npm stage approve <stage-id>    # publish it (prompts for 2FA)
+   ```
+
+Staged publishing is npm's recommended setup: a compromised workflow can only upload, never ship. If you prefer fully automatic releases, set `PUBLISH_MODE: direct` at the top of the workflow (or pick `direct` in a manual run) and tick **Allow `npm publish`** on the trusted publisher. A push whose version is already live on npm does nothing, so the branch can receive any commit safely. You can also run the workflow by hand (Actions → Release → Run workflow) with a `patch`, `minor`, `major` or `prerelease` bump: it commits the new version on the branch and releases it. Pre-release versions (`1.2.0-next.0`) use the `next` dist-tag. Publishing relies on **npm trusted publishing** (OIDC): register a trusted publisher on npmjs.com for this repository (GitHub Actions · `luigi-dv/react-ts-vite` · workflow `release.yml` · environment `release`); `npm stage publish` is always allowed and no npm token is ever stored in GitHub. The only optional secret is `ANTHROPIC_API_KEY`. To release from another branch, change `branches: [release]` at the top of the workflow.
 
 ## Docker
 

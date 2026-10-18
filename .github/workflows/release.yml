@@ -1,17 +1,23 @@
-# Release pipeline: quality gate → version tag → GitHub release → npm publish (provenance) → Claude report.
+# Release pipeline: quality gate → npm (staged or direct) → version tag → GitHub release → Claude report.
 #
 # Three ways to release:
 #   1. Push to the release branch (see `branches:` below) with a new `version` in package.json.
-#      The pipeline tags it, publishes a GitHub release from the matching CHANGELOG.md section and
-#      publishes to npm. A push whose version is already on npm does nothing, so any commit is safe.
+#      A push whose version is already live on npm does nothing, so any commit is safe.
 #   2. Run the workflow manually (Actions → Release → Run workflow) and pick a version bump.
 #      `npm version` commits and tags on the chosen branch, then the same release steps run.
 #   3. Publish a GitHub release by hand for an existing tag: the pipeline publishes that version to npm.
 #
-# Authentication: npm trusted publishing (OIDC). On npmjs.com → package → Settings → Trusted Publisher, register
-#   GitHub Actions · owner `luigi-dv` · repository `react-ts-vite` · workflow `release.yml` · environment `release`
-#   and allow `npm publish`. No npm token is stored in GitHub; npm (≥ 11.5.1) exchanges the job's OIDC token
-#   itself and generates provenance. Optional secret: ANTHROPIC_API_KEY (Claude report).
+# Publish modes (PUBLISH_MODE below, or the `publish_mode` input of a manual run):
+#   staged (default, npm's recommendation) — `npm stage publish` uploads the version in a non-public state.
+#       A maintainer reviews it and makes it live with 2FA: `npm stage approve <stage-id>`.
+#       The stage id is printed in the job summary and in the GitHub release notes.
+#   direct — `npm publish` makes the version live immediately. The npm trusted publisher must allow `npm publish`.
+#
+# Authentication: npm trusted publishing (OIDC). On npmjs.com → package → Settings → Trusted Publisher register
+#   GitHub Actions · owner `luigi-dv` · repository `react-ts-vite` · workflow `release.yml` · environment `release`.
+#   `npm stage publish` is always allowed; tick "Allow npm publish" only for direct mode. No npm token is stored
+#   in GitHub: npm (≥ 11.5.1) exchanges the job's OIDC token itself and generates provenance.
+# Optional secret: ANTHROPIC_API_KEY (Claude deployment report).
 # To release from another branch, change the `branches` list below.
 name: Release
 
@@ -27,10 +33,18 @@ on:
         type: choice
         options: [none, patch, minor, major, prepatch, preminor, premajor, prerelease]
         default: none
+      publish_mode:
+        description: staged = upload for 2FA approval (recommended) · direct = live immediately
+        type: choice
+        options: [staged, direct]
+        default: staged
       dist_tag:
         description: npm dist-tag (empty = latest, or next for pre-release versions)
         type: string
         default: ''
+
+env:
+  PUBLISH_MODE: staged # staged | direct — mode used for pushes to the release branch and for GitHub releases
 
 # One release at a time; never cancel a publish that is already running.
 concurrency:
@@ -57,7 +71,7 @@ jobs:
       - run: npm run build
 
   release:
-    name: Tag · GitHub release · npm publish
+    name: npm · tag · GitHub release
     needs: verify
     runs-on: ubuntu-latest
     environment: release # must match the trusted publisher on npmjs.com; add required reviewers here for a manual gate
@@ -68,7 +82,9 @@ jobs:
       name: ${{ steps.meta.outputs.name }}
       version: ${{ steps.meta.outputs.version }}
       tag: ${{ steps.meta.outputs.tag }}
-      published: ${{ steps.publish.outcome == 'success' }}
+      released: ${{ steps.npm.outputs.result == 'published' || steps.npm.outputs.result == 'staged' }}
+      result: ${{ steps.npm.outputs.result }}
+      stage_id: ${{ steps.npm.outputs.stage_id }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -80,9 +96,11 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
       - run: npm ci --ignore-scripts
-      - name: Ensure npm supports trusted publishing (≥ 11.5.1)
+
+      - name: Ensure npm supports trusted and staged publishing
         run: |
           node -e "const [a, b, c] = process.versions.npm.split('.').map(Number); process.exit(a > 11 || (a === 11 && (b > 5 || (b === 5 && c >= 1))) ? 0 : 1)" \
+            && npm stage --help >/dev/null 2>&1 \
             || npm install -g npm@latest
           npm --version
 
@@ -99,6 +117,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           DIST_TAG_INPUT: ${{ inputs.dist_tag }}
+          MODE_INPUT: ${{ inputs.publish_mode }}
         run: |
           NAME=$(node -p "require('./package.json').name")
           VERSION=$(node -p "require('./package.json').version")
@@ -107,39 +126,90 @@ jobs:
             echo "::error::package.json version is $VERSION but the release tag is $RELEASE_TAG. Bump the version on the tagged commit."
             exit 1
           fi
-          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then ALREADY=true; else ALREADY=false; fi
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then LIVE=true; else LIVE=false; fi
           case "$VERSION" in *-*) PRERELEASE=true ;; *) PRERELEASE=false ;; esac
           DIST_TAG="$DIST_TAG_INPUT"
           if [ -z "$DIST_TAG" ]; then
             if [ "$PRERELEASE" = true ]; then DIST_TAG=next; else DIST_TAG=latest; fi
           fi
+          MODE="${MODE_INPUT:-$PUBLISH_MODE}"
           {
             echo "name=$NAME"
             echo "version=$VERSION"
             echo "tag=$TAG"
-            echo "already_published=$ALREADY"
+            echo "live=$LIVE"
             echo "prerelease=$PRERELEASE"
             echo "dist_tag=$DIST_TAG"
+            echo "mode=$MODE"
           } >> "$GITHUB_OUTPUT"
-          echo "$NAME@$VERSION → tag $TAG, dist-tag $DIST_TAG, already on npm: $ALREADY"
+          echo "$NAME@$VERSION → tag $TAG, dist-tag $DIST_TAG, mode $MODE, already live on npm: $LIVE"
 
-      - name: Nothing to publish
-        if: steps.meta.outputs.already_published == 'true'
-        run: echo "::notice::${{ steps.meta.outputs.name }}@${{ steps.meta.outputs.version }} is already on npm. Bump the version in package.json to release again."
+      - name: Publish to npm (trusted publishing)
+        id: npm
+        env:
+          NAME: ${{ steps.meta.outputs.name }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          DIST_TAG: ${{ steps.meta.outputs.dist_tag }}
+          MODE: ${{ steps.meta.outputs.mode }}
+          LIVE: ${{ steps.meta.outputs.live }}
+        # No token: npm exchanges this job's OIDC token with npmjs.com (trusted publisher) and signs provenance.
+        run: |
+          if [ "$LIVE" = true ]; then
+            echo "::notice::$NAME@$VERSION is already live on npm. Bump the version in package.json to release again."
+            echo "result=already-live" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$MODE" = direct ]; then
+            npm publish --provenance --access public --tag "$DIST_TAG"
+            echo "result=published" >> "$GITHUB_OUTPUT"
+            echo "✅ Published **$NAME@$VERSION** to npm (dist-tag \`$DIST_TAG\`)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Staged publishing: the version is uploaded but not public until a maintainer approves it with 2FA.
+          set +e
+          OUTPUT=$(npm stage publish --provenance --access public --tag "$DIST_TAG" 2>&1)
+          STATUS=$?
+          set -e
+          printf '%s\n' "$OUTPUT"
+          if [ "$STATUS" -ne 0 ]; then
+            if printf '%s' "$OUTPUT" | grep -qiE 'E409|EPUBLISHCONFLICT|already (exists|staged)|cannot publish over'; then
+              echo "::notice::$NAME@$VERSION is already staged on npm. Approve it: npm stage list $NAME → npm stage approve <stage-id>."
+              echo "result=staged" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            exit "$STATUS"
+          fi
+          STAGE_ID=$(printf '%s' "$OUTPUT" | grep -oiE 'staged with id [0-9a-f-]{36}' | grep -oiE '[0-9a-f-]{36}' | head -n 1)
+          echo "result=staged" >> "$GITHUB_OUTPUT"
+          echo "stage_id=$STAGE_ID" >> "$GITHUB_OUTPUT"
+          {
+            echo "📦 **$NAME@$VERSION** is staged on npm (dist-tag \`$DIST_TAG\`) and is not public yet."
+            echo
+            echo "Review and approve it with 2FA from a machine where you are logged in to npm:"
+            echo
+            echo '```bash'
+            echo "npm stage view ${STAGE_ID:-<stage-id>}      # inspect (npm stage download to fetch the tarball)"
+            echo "npm stage approve ${STAGE_ID:-<stage-id>}   # make it live"
+            echo "npm stage reject ${STAGE_ID:-<stage-id>}    # or discard it"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Create tag and GitHub release
-        if: steps.meta.outputs.already_published == 'false' && github.event_name != 'release'
+      - name: Tag and GitHub release
+        if: steps.npm.outputs.result != 'already-live' && github.event_name != 'release'
         env:
           GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.meta.outputs.name }}
           TAG: ${{ steps.meta.outputs.tag }}
           VERSION: ${{ steps.meta.outputs.version }}
           PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+          RESULT: ${{ steps.npm.outputs.result }}
+          STAGE_ID: ${{ steps.npm.outputs.stage_id }}
         run: |
           if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             git tag -a "$TAG" -m "$TAG"
             git push origin "refs/tags/$TAG"
           fi
-          # Release notes: the matching CHANGELOG.md section, or a short fallback.
+          # Release notes: the matching CHANGELOG.md section (or a short fallback) plus the npm status.
           awk -v ver="$VERSION" '
             /^## \[/ { printing = (index($0, "[" ver "]") == 4); next }
             printing { print }
@@ -147,22 +217,21 @@ jobs:
           if [ ! -s release-notes.md ]; then
             printf 'Release %s. See CHANGELOG.md for details.\n' "$TAG" > release-notes.md
           fi
+          if [ "$RESULT" = published ]; then
+            printf '\n\n## npm\n\nPublished: https://www.npmjs.com/package/%s/v/%s\n' "$NAME" "$VERSION" >> release-notes.md
+          elif [ "$RESULT" = staged ]; then
+            printf '\n\n## npm\n\nStaged for approval. A maintainer makes it live with `npm stage approve %s` (2FA required).\n' "${STAGE_ID:-<stage-id>}" >> release-notes.md
+          fi
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             EXTRA=""
             [ "$PRERELEASE" = true ] && EXTRA="--prerelease"
             gh release create "$TAG" --verify-tag --title "$TAG" --notes-file release-notes.md $EXTRA
           fi
 
-      - name: Publish to npm (trusted publishing)
-        id: publish
-        if: steps.meta.outputs.already_published == 'false'
-        # No token: npm exchanges this job's OIDC token with npmjs.com (trusted publisher) and signs provenance.
-        run: npm publish --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
-
   insights:
     name: Claude deployment insights
     needs: release
-    if: needs.release.outputs.published == 'true'
+    if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write # append the report to the GitHub release
@@ -191,8 +260,8 @@ jobs:
         if: env.HAS_ANTHROPIC_KEY == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          RTV_DEPLOY_URL: https://www.npmjs.com/package/${{ needs.release.outputs.name }}/v/${{ needs.release.outputs.version }}
-          RTV_DEPLOY_ENV: npm release ${{ needs.release.outputs.tag }}
+          RTV_DEPLOY_URL: https://www.npmjs.com/package/${{ needs.release.outputs.name }}
+          RTV_DEPLOY_ENV: npm ${{ needs.release.outputs.result }} ${{ needs.release.outputs.tag }}
         run: node bin/rtv.mjs insights --mode api
       - name: Append the report to the release notes
         if: env.HAS_ANTHROPIC_KEY == 'true'
