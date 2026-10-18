@@ -27,7 +27,7 @@ npx react-ts-vite create my-app --arch clean --templates landing,auth --claude-i
 | `--force`              | scaffold into a non-empty directory |
 | any `setup` option     | forwarded to the wizard             |
 
-What changes compared to the template: `package.json` is reset (name from the directory, `0.1.0`, private, no `bin`/`files`), the template's `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, `npm-publish.yml` and the CLI's own test suites are left out, a starter README is written and `.gitignore` is restored.
+What changes compared to the template: `package.json` is reset (name from the directory, `0.1.0`, private, no `bin`/`files`), the template's `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, `release.yml` and the CLI's own test suites are left out, a starter README is written and `.gitignore` is restored.
 
 ## `setup`
 

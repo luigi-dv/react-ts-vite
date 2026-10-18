@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Luigi-DV/react-ts-vite/blob/master/scripts/schema/rtv.config.schema.json",
+  "$id": "https://github.com/luigi-dv/react-ts-vite/blob/master/scripts/schema/rtv.config.schema.json",
   "title": "react-ts-vite project configuration",
   "description": "Declares the project's shape: architecture, applied design templates, Claude settings and the path-alias map read by vite.config.ts.",
   "type": "object",

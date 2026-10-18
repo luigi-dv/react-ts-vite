@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Release pipeline (`.github/workflows/release.yml`): pushing a new `package.json` version to the `release` branch — or running the workflow with a version bump — runs the quality gate, tags `vX.Y.Z`, publishes a GitHub release from the matching changelog section, stages the version on npm through trusted publishing (OIDC, no stored token, provenance included) for a maintainer to approve with 2FA — or publishes it directly when `PUBLISH_MODE` is `direct` — and appends the Claude deployment report. Versions already live on npm are skipped, and a hand-published GitHub release publishes its tag too.
+
+### Changed
+
+- Repository URLs use the canonical lowercase owner `luigi-dv`, which npm provenance requires to match the source repository.
+
+### Removed
+
+- `npm-publish.yml`, superseded by the release pipeline.
+
 ## [0.2.0] - 2026-10-18
 
 ### Added

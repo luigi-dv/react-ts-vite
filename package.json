@@ -6,13 +6,13 @@
   "type": "module",
   "license": "MIT",
   "author": "Luigi Davila",
-  "homepage": "https://github.com/Luigi-DV/react-ts-vite#readme",
+  "homepage": "https://github.com/luigi-dv/react-ts-vite#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Luigi-DV/react-ts-vite.git"
+    "url": "git+https://github.com/luigi-dv/react-ts-vite.git"
   },
   "bugs": {
-    "url": "https://github.com/Luigi-DV/react-ts-vite/issues"
+    "url": "https://github.com/luigi-dv/react-ts-vite/issues"
   },
   "keywords": [
     "react",

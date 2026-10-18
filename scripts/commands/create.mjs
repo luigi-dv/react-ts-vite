@@ -57,7 +57,7 @@ const EXCLUDE = new Set([
   'CHANGELOG.md',
   'CONTRIBUTING.md',
   'README.md',
-  '.github/workflows/npm-publish.yml',
+  '.github/workflows/release.yml',
   '.claude/settings.local.json',
   // The template's own test suites for the CLI and the raw templates; projects get page smoke tests instead.
   '__tests__/scripts',
@@ -116,7 +116,7 @@ export default async function command({ positionals, flags }) {
   )
   writeText(
     path.join(target, 'CHANGELOG.md'),
-    `# Changelog\n\nAll notable changes to ${name} are documented here.\n\n## [Unreleased]\n\n- Project created from [react-ts-vite](https://github.com/Luigi-DV/react-ts-vite).\n`,
+    `# Changelog\n\nAll notable changes to ${name} are documented here.\n\n## [Unreleased]\n\n- Project created from [react-ts-vite](https://github.com/luigi-dv/react-ts-vite).\n`,
   )
   log(`  name ${c.bold(name)} · version 0.1.0 · private`)
 

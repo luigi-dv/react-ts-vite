@@ -30,7 +30,7 @@ export default function Home() {
         </ul>
         <div className="mt-8 flex gap-4 text-sm font-semibold">
           <a
-            href="https://github.com/Luigi-DV/react-ts-vite#readme"
+            href="https://github.com/luigi-dv/react-ts-vite#readme"
             className="text-brand-600 hover:text-brand-500 dark:text-brand-400"
           >
             Template docs <span aria-hidden="true">→</span>

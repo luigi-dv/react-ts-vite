@@ -144,7 +144,7 @@ src/
 - **Before pushing**: `npm run check` must pass locally; CI runs the same gate on Node 22 and 24 plus an architecture-switch smoke test.
 - **Pull requests** describe the change, how it was tested and any follow-ups. Link issues. Generated files (`AGENTS.md`, mirrors, lockfile) are committed together with the change that produced them.
 - **Changelog**: add a line under `## [Unreleased]` in `CHANGELOG.md` for every user-visible change (Keep a Changelog format).
-- **Release**: bump `version` in `package.json` (semver), move Unreleased to a dated section, tag `vX.Y.Z`, publish a GitHub release. The `Node.js Package` workflow publishes to npm with provenance; when `ANTHROPIC_API_KEY` is configured it also appends a Claude deployment report to the release notes.
+- **Release**: bump `version` in `package.json` (`npm version <patch|minor|major> --no-git-tag-version`), move Unreleased into a dated changelog section, commit `chore(release): vX.Y.Z` and merge it into the `release` branch. The `Release` workflow (`.github/workflows/release.yml`) runs the quality gate, tags `vX.Y.Z`, publishes the GitHub release from the changelog section, publishes to npm with provenance and, when `ANTHROPIC_API_KEY` is configured, appends a Claude deployment report. Never tag by hand.
 - **Never** rewrite shared history (`push --force` on `master`), commit `.env` files or credentials, or merge with a red CI.
 
 ### Testing
@@ -186,6 +186,6 @@ Step-by-step procedures for recurring jobs.
 | [`add-feature`](.agent/workflows/add-feature.md) | Implement a business capability across layers in the active architecture, with tests and documentation. |
 | [`add-page`](.agent/workflows/add-page.md) | Add a route-level page from a design template or from scratch, wire its route and test it. |
 | [`new-project`](.agent/workflows/new-project.md) | Scaffold a project from react-ts-vite, choose its architecture and templates, and make the first commit. |
-| [`release`](.agent/workflows/release.md) | Cut a version, publish it and produce the Claude deployment report. |
+| [`release`](.agent/workflows/release.md) | Cut a version from the release branch, publish it to npm and produce the Claude deployment report. |
 | [`review-pr`](.agent/workflows/review-pr.md) | Review changes against the project rules and report findings in a consistent format. |
 | [`switch-architecture`](.agent/workflows/switch-architecture.md) | Move the project to another folder architecture safely with the switcher, then verify. |

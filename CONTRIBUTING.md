@@ -45,4 +45,4 @@ Add an entry to `ARCHITECTURES` in `scripts/lib/architectures.mjs` (`roles`, `ex
 
 ## Releasing
 
-Follow `.agent/workflows/release.md`: bump the version, update the changelog, tag `vX.Y.Z`, publish a GitHub release. The `Node.js Package` workflow publishes to npm with provenance.
+Follow `.agent/workflows/release.md`: bump the version with `npm version <patch|minor|major> --no-git-tag-version`, move the Unreleased changelog entries into a dated section, commit `chore(release): vX.Y.Z` and merge it into the `release` branch. The `Release` workflow (`.github/workflows/release.yml`) runs the quality gate, tags `vX.Y.Z`, publishes the GitHub release from the changelog section and publishes to npm with provenance. Never create tags by hand.

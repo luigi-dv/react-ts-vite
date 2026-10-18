@@ -1,6 +1,6 @@
 # {{name}}
 
-Built with [react-ts-vite](https://github.com/Luigi-DV/react-ts-vite): React 19 · TypeScript · Vite · Tailwind CSS · Vitest.
+Built with [react-ts-vite](https://github.com/luigi-dv/react-ts-vite): React 19 · TypeScript · Vite · Tailwind CSS · Vitest.
 
 ## Scripts
 
