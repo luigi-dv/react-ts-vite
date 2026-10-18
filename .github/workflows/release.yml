@@ -1,0 +1,201 @@
+# Release pipeline: quality gate → version tag → GitHub release → npm publish (provenance) → Claude report.
+#
+# Three ways to release:
+#   1. Push to the release branch (see `branches:` below) with a new `version` in package.json.
+#      The pipeline tags it, publishes a GitHub release from the matching CHANGELOG.md section and
+#      publishes to npm. A push whose version is already on npm does nothing, so any commit is safe.
+#   2. Run the workflow manually (Actions → Release → Run workflow) and pick a version bump.
+#      `npm version` commits and tags on the chosen branch, then the same release steps run.
+#   3. Publish a GitHub release by hand for an existing tag: the pipeline publishes that version to npm.
+#
+# Secrets: npm_token (npm automation token, required to publish) · ANTHROPIC_API_KEY (optional, Claude report).
+# To release from another branch, change the `branches` list below.
+name: Release
+
+on:
+  push:
+    branches: [release]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump before releasing (none = release the version already in package.json)
+        type: choice
+        options: [none, patch, minor, major, prepatch, preminor, premajor, prerelease]
+        default: none
+      dist_tag:
+        description: npm dist-tag (empty = latest, or next for pre-release versions)
+        type: string
+        default: ''
+
+# One release at a time; never cancel a publish that is already running.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+
+  release:
+    name: Tag · GitHub release · npm publish
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: release # add required reviewers or environment secrets here if you want a manual gate
+    permissions:
+      contents: write # version commit, tag and GitHub release
+      id-token: write # npm provenance
+    outputs:
+      name: ${{ steps.meta.outputs.name }}
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      published: ${{ steps.publish.outcome == 'success' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --ignore-scripts
+
+      - name: Bump version (manual runs only)
+        if: github.event_name == 'workflow_dispatch' && inputs.bump != 'none'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm version "${{ inputs.bump }}" --preid next -m "chore(release): v%s"
+          git push --follow-tags origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Resolve version
+        id: meta
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          DIST_TAG_INPUT: ${{ inputs.dist_tag }}
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          if [ -n "$RELEASE_TAG" ] && [ "$TAG" != "$RELEASE_TAG" ]; then
+            echo "::error::package.json version is $VERSION but the release tag is $RELEASE_TAG. Bump the version on the tagged commit."
+            exit 1
+          fi
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then ALREADY=true; else ALREADY=false; fi
+          case "$VERSION" in *-*) PRERELEASE=true ;; *) PRERELEASE=false ;; esac
+          DIST_TAG="$DIST_TAG_INPUT"
+          if [ -z "$DIST_TAG" ]; then
+            if [ "$PRERELEASE" = true ]; then DIST_TAG=next; else DIST_TAG=latest; fi
+          fi
+          {
+            echo "name=$NAME"
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+            echo "already_published=$ALREADY"
+            echo "prerelease=$PRERELEASE"
+            echo "dist_tag=$DIST_TAG"
+          } >> "$GITHUB_OUTPUT"
+          echo "$NAME@$VERSION → tag $TAG, dist-tag $DIST_TAG, already on npm: $ALREADY"
+
+      - name: Nothing to publish
+        if: steps.meta.outputs.already_published == 'true'
+        run: echo "::notice::${{ steps.meta.outputs.name }}@${{ steps.meta.outputs.version }} is already on npm. Bump the version in package.json to release again."
+
+      - name: Create tag and GitHub release
+        if: steps.meta.outputs.already_published == 'false' && github.event_name != 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+        run: |
+          if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git tag -a "$TAG" -m "$TAG"
+            git push origin "refs/tags/$TAG"
+          fi
+          # Release notes: the matching CHANGELOG.md section, or a short fallback.
+          awk -v ver="$VERSION" '
+            /^## \[/ { printing = (index($0, "[" ver "]") == 4); next }
+            printing { print }
+          ' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            printf 'Release %s. See CHANGELOG.md for details.\n' "$TAG" > release-notes.md
+          fi
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            EXTRA=""
+            [ "$PRERELEASE" = true ] && EXTRA="--prerelease"
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file release-notes.md $EXTRA
+          fi
+
+      - name: Publish to npm
+        id: publish
+        if: steps.meta.outputs.already_published == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
+        run: npm publish --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
+
+  insights:
+    name: Claude deployment insights
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # append the report to the GitHub release
+    env:
+      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Skip when no API key is configured
+        if: env.HAS_ANTHROPIC_KEY != 'true'
+        run: echo "::notice::Add an ANTHROPIC_API_KEY secret to append a Claude deployment report to each release."
+      - uses: actions/checkout@v5
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - if: env.HAS_ANTHROPIC_KEY == 'true'
+        run: |
+          npm ci
+          npm install --no-save @anthropic-ai/sdk
+          npm run build
+      - name: Generate the report with Claude
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RTV_DEPLOY_URL: https://www.npmjs.com/package/${{ needs.release.outputs.name }}/v/${{ needs.release.outputs.version }}
+          RTV_DEPLOY_ENV: npm release ${{ needs.release.outputs.tag }}
+        run: node bin/rtv.mjs insights --mode api
+      - name: Append the report to the release notes
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          {
+            gh release view "$TAG" --json body -q .body
+            printf '\n\n## Claude deployment insights\n\n'
+            cat deployment-insights.md
+          } > release-notes.md
+          gh release edit "$TAG" --notes-file release-notes.md

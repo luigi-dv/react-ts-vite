@@ -8,7 +8,7 @@ A production-grade starter where **design tool × technology × architecture × 
 with a zero-dependency CLI that lets you **choose your folder architecture**, **drop in design templates**,
 **equip AI coding agents with project skills**, and **run Claude on every deployment**.
 
-[![Build](https://github.com/Luigi-DV/react-ts-vite/actions/workflows/build.yml/badge.svg)](https://github.com/Luigi-DV/react-ts-vite/actions/workflows/build.yml)
+[![Build](https://github.com/luigi-dv/react-ts-vite/actions/workflows/build.yml/badge.svg)](https://github.com/luigi-dv/react-ts-vite/actions/workflows/build.yml)
 [![npm](https://img.shields.io/npm/v/react-ts-vite.svg)](https://www.npmjs.com/package/react-ts-vite)
 [![Node](https://img.shields.io/badge/node-%3E%3D22.12-339933.svg)](.nvmrc)
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -40,7 +40,7 @@ cd my-app && npm install && npm run dev
 
 ```bash
 # Or clone the template itself
-git clone https://github.com/Luigi-DV/react-ts-vite my-app
+git clone https://github.com/luigi-dv/react-ts-vite my-app
 cd my-app && npm install
 npm run setup            # same wizard, in place
 npm run dev              # http://localhost:3000
@@ -150,7 +150,17 @@ Full reference: [docs/cli.md](docs/cli.md).
 
 ## Quality gate and CI
 
-`npm run check` is the contract between you, your teammates and your agents. CI (`.github/workflows/build.yml`) runs it on Node 22 and 24, builds, and in a second job applies **every architecture with every template** and re-runs the checker, typecheck and tests — the switcher is tested on each push. Releases publish to npm with provenance and, when configured, attach the Claude deployment report.
+`npm run check` is the contract between you, your teammates and your agents. CI (`.github/workflows/build.yml`) runs it on Node 22 and 24, builds, and in a second job applies **every architecture with every template** and re-runs the checker, typecheck and tests — the switcher is tested on each push.
+
+## Releasing
+
+Releases are driven by the **`release` branch** and the version in `package.json` (`.github/workflows/release.yml`):
+
+1. Bump the version and move the **Unreleased** changelog entries into a dated section: `npm version minor --no-git-tag-version`, edit `CHANGELOG.md`, commit `chore(release): vX.Y.Z`.
+2. Merge (or push) that commit to the `release` branch.
+3. The pipeline runs the quality gate and build, tags `vX.Y.Z`, publishes a GitHub release whose notes are the matching changelog section, publishes to npm with provenance and, when `ANTHROPIC_API_KEY` is set, appends the Claude deployment report to the release.
+
+A push whose version is already on npm does nothing, so the branch can receive any commit safely. You can also run the workflow by hand (Actions → Release → Run workflow) with a `patch`, `minor`, `major` or `prerelease` bump: it commits the new version on the branch and releases it. Pre-release versions (`1.2.0-next.0`) publish under the `next` dist-tag. Secrets: `npm_token` (an npm automation token) and, optionally, `ANTHROPIC_API_KEY`. To release from another branch, change `branches: [release]` at the top of the workflow.
 
 ## Docker
 
