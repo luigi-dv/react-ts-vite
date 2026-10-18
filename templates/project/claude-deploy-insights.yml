@@ -1,0 +1,89 @@
+# rtv:generated — added by `npm run setup` (Claude deployment insights). Safe to edit.
+#
+# Asks Claude for a deployment report (summary, release notes, risk assessment,
+# bundle notes, post-deploy checklist) whenever this project is released or a
+# deployment succeeds. The job skips itself when the ANTHROPIC_API_KEY secret is
+# missing, so enabling the workflow never breaks CI.
+name: Claude deployment insights
+
+on:
+  release:
+    types: [published]
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: Git ref to compare against (default is the previous tag)
+        required: false
+        default: ''
+      deploy_url:
+        description: Deployment URL to mention in the report
+        required: false
+        default: ''
+
+permissions:
+  contents: write # append the report to the GitHub release
+  deployments: read
+
+env:
+  HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+
+jobs:
+  insights:
+    name: Deployment report
+    # Deployment events: only successful deployments. Releases and manual runs always qualify.
+    if: github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip when no API key is configured
+        if: env.HAS_ANTHROPIC_KEY != 'true'
+        run: echo "::notice::Add an ANTHROPIC_API_KEY repository secret to enable Claude deployment insights."
+
+      - uses: actions/checkout@v5
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        with:
+          fetch-depth: 0 # full history so the previous tag can be found
+
+      - uses: actions/setup-node@v5
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        run: |
+          npm ci
+          npm ls @anthropic-ai/sdk >/dev/null 2>&1 || npm install --no-save @anthropic-ai/sdk
+
+      - name: Build (for bundle-size insights)
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        run: npm run build
+
+      - name: Generate the report with Claude
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RTV_DEPLOY_URL: ${{ inputs.deploy_url || github.event.deployment_status.target_url || github.event.release.html_url }}
+          RTV_DEPLOY_ENV: ${{ github.event.deployment_status.environment || (github.event_name == 'release' && 'release') || 'manual' }}
+          SINCE: ${{ inputs.since }}
+        run: node bin/rtv.mjs insights --mode api ${SINCE:+--since "$SINCE"}
+
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        with:
+          name: deployment-insights
+          path: deployment-insights.md
+
+      - name: Append the report to the release notes
+        if: env.HAS_ANTHROPIC_KEY == 'true' && github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          {
+            gh release view "$TAG" --json body -q .body
+            printf '\n\n## Claude deployment insights\n\n'
+            cat deployment-insights.md
+          } > release-notes.md
+          gh release edit "$TAG" --notes-file release-notes.md

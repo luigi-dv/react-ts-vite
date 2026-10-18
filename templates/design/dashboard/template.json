@@ -1,0 +1,11 @@
+{
+  "id": "dashboard",
+  "order": 2,
+  "title": "Dashboard shell",
+  "description": "Admin layout with collapsible sidebar, top bar, theme toggle, stat cards and an activity table.",
+  "page": "Dashboard",
+  "route": "/dashboard",
+  "heading": "Overview",
+  "tags": ["app", "admin", "dark-mode"],
+  "uses": ["@headlessui/react", "@heroicons/react"]
+}
