@@ -160,7 +160,7 @@ Releases are driven by the **`release` branch** and the version in `package.json
 2. Merge (or push) that commit to the `release` branch.
 3. The pipeline runs the quality gate and build, tags `vX.Y.Z`, publishes a GitHub release whose notes are the matching changelog section, publishes to npm with provenance and, when `ANTHROPIC_API_KEY` is set, appends the Claude deployment report to the release.
 
-A push whose version is already on npm does nothing, so the branch can receive any commit safely. You can also run the workflow by hand (Actions → Release → Run workflow) with a `patch`, `minor`, `major` or `prerelease` bump: it commits the new version on the branch and releases it. Pre-release versions (`1.2.0-next.0`) publish under the `next` dist-tag. Secrets: `npm_token` (an npm automation token) and, optionally, `ANTHROPIC_API_KEY`. To release from another branch, change `branches: [release]` at the top of the workflow.
+A push whose version is already on npm does nothing, so the branch can receive any commit safely. You can also run the workflow by hand (Actions → Release → Run workflow) with a `patch`, `minor`, `major` or `prerelease` bump: it commits the new version on the branch and releases it. Pre-release versions (`1.2.0-next.0`) publish under the `next` dist-tag. Publishing uses **npm trusted publishing** (OIDC): register a trusted publisher on npmjs.com for this repository (GitHub Actions · `luigi-dv/react-ts-vite` · workflow `release.yml` · environment `release` · allow `npm publish`) and no npm token is ever stored in GitHub; provenance is generated automatically. The only optional secret is `ANTHROPIC_API_KEY`. To release from another branch, change `branches: [release]` at the top of the workflow.
 
 ## Docker
 

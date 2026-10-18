@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
-- Release pipeline (`.github/workflows/release.yml`): pushing a new `package.json` version to the `release` branch — or running the workflow with a version bump — runs the quality gate, tags `vX.Y.Z`, publishes a GitHub release from the matching changelog section, publishes to npm with provenance and appends the Claude deployment report. Versions already on npm are skipped, and a hand-published GitHub release publishes its tag too.
+- Release pipeline (`.github/workflows/release.yml`): pushing a new `package.json` version to the `release` branch — or running the workflow with a version bump — runs the quality gate, tags `vX.Y.Z`, publishes a GitHub release from the matching changelog section, publishes to npm through trusted publishing (OIDC, no stored token) with provenance and appends the Claude deployment report. Versions already on npm are skipped, and a hand-published GitHub release publishes its tag too.
 
 ### Changed
 

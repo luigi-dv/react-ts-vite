@@ -8,7 +8,10 @@
 #      `npm version` commits and tags on the chosen branch, then the same release steps run.
 #   3. Publish a GitHub release by hand for an existing tag: the pipeline publishes that version to npm.
 #
-# Secrets: npm_token (npm automation token, required to publish) · ANTHROPIC_API_KEY (optional, Claude report).
+# Authentication: npm trusted publishing (OIDC). On npmjs.com → package → Settings → Trusted Publisher, register
+#   GitHub Actions · owner `luigi-dv` · repository `react-ts-vite` · workflow `release.yml` · environment `release`
+#   and allow `npm publish`. No npm token is stored in GitHub; npm (≥ 11.5.1) exchanges the job's OIDC token
+#   itself and generates provenance. Optional secret: ANTHROPIC_API_KEY (Claude report).
 # To release from another branch, change the `branches` list below.
 name: Release
 
@@ -57,10 +60,10 @@ jobs:
     name: Tag · GitHub release · npm publish
     needs: verify
     runs-on: ubuntu-latest
-    environment: release # add required reviewers or environment secrets here if you want a manual gate
+    environment: release # must match the trusted publisher on npmjs.com; add required reviewers here for a manual gate
     permissions:
       contents: write # version commit, tag and GitHub release
-      id-token: write # npm provenance
+      id-token: write # npm trusted publishing (OIDC) and provenance
     outputs:
       name: ${{ steps.meta.outputs.name }}
       version: ${{ steps.meta.outputs.version }}
@@ -77,6 +80,11 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
       - run: npm ci --ignore-scripts
+      - name: Ensure npm supports trusted publishing (≥ 11.5.1)
+        run: |
+          node -e "const [a, b, c] = process.versions.npm.split('.').map(Number); process.exit(a > 11 || (a === 11 && (b > 5 || (b === 5 && c >= 1))) ? 0 : 1)" \
+            || npm install -g npm@latest
+          npm --version
 
       - name: Bump version (manual runs only)
         if: github.event_name == 'workflow_dispatch' && inputs.bump != 'none'
@@ -145,11 +153,10 @@ jobs:
             gh release create "$TAG" --verify-tag --title "$TAG" --notes-file release-notes.md $EXTRA
           fi
 
-      - name: Publish to npm
+      - name: Publish to npm (trusted publishing)
         id: publish
         if: steps.meta.outputs.already_published == 'false'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
+        # No token: npm exchanges this job's OIDC token with npmjs.com (trusted publisher) and signs provenance.
         run: npm publish --provenance --access public --tag "${{ steps.meta.outputs.dist_tag }}"
 
   insights:
