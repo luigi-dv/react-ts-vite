@@ -1,10 +1,7 @@
-
+// Vite minifies CSS on `vite build` by itself, so no extra minifier is needed here.
 module.exports = {
-    plugins: [
-        require("tailwindcss"),
-        require("autoprefixer"),
-        require('cssnano')({
-            preset: 'default',
-        }),
-    ]
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
 }

@@ -1,0 +1,19 @@
+# Build output and caches
+dist
+coverage
+node_modules
+*.tsbuildinfo
+
+# Lockfiles and generated reports
+package-lock.json
+deployment-insights.md
+
+# Generated from .agent/ and the architecture catalogue (see `npm run agent:sync`)
+AGENTS.md
+docs/architecture.md
+.agent/rules/architecture.md
+.agent/agent.json
+.claude/skills
+.claude/commands
+.cursor/rules
+.github/copilot-instructions.md

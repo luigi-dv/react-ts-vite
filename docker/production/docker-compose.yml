@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   React.Typescript.Vite:
     build:
@@ -8,3 +6,4 @@ services:
     image: react.typescript.vite.production
     ports:
       - '3000:3000'
+    restart: unless-stopped

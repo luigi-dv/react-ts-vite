@@ -1,0 +1,11 @@
+{
+  "id": "auth",
+  "order": 3,
+  "title": "Authentication",
+  "description": "Split-screen sign-in and create-account forms with accessible fields and inline validation.",
+  "page": "Auth",
+  "route": "/login",
+  "heading": "Sign in to your account",
+  "tags": ["forms", "auth"],
+  "uses": ["@heroicons/react", "@tailwindcss/forms"]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "landing",
+  "order": 1,
+  "title": "Landing page",
+  "description": "Marketing hero with responsive header, mobile menu, feature grid and footer.",
+  "page": "Landing",
+  "route": "/",
+  "heading": "Ship your next React app in hours, not weeks",
+  "tags": ["marketing", "hero"],
+  "uses": ["@headlessui/react", "@heroicons/react", "@const/navigation"]
+}

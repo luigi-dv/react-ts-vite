@@ -1,0 +1,11 @@
+{
+  "id": "blank",
+  "order": 4,
+  "title": "Blank start",
+  "description": "A minimal, centred starting page that lists the stack and links to the docs.",
+  "page": "Home",
+  "route": "/",
+  "heading": "Start building",
+  "tags": ["minimal"],
+  "uses": []
+}
