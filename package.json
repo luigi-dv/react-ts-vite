@@ -1,6 +1,6 @@
 {
   "name": "react-ts-vite",
-  "version": "0.2.0",
+  "version": "2.0.0",
   "description": "React + TypeScript + Vite + Tailwind CSS starter with selectable architectures, design templates, AI-agent skills (.agent) and Claude-powered deployment insights.",
   "private": false,
   "type": "module",
