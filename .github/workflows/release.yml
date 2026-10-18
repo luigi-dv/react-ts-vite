@@ -209,7 +209,10 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git tag -a "$TAG" -m "$TAG"
-            git push origin "refs/tags/$TAG"
+            if ! git push origin "refs/tags/$TAG"; then
+              echo "::error::Could not create tag $TAG. A repository ruleset is restricting tag creation for GitHub Actions: allow creations for tags matching v* (Settings → Rules → Rulesets) or create the tag and release by hand, then re-run."
+              exit 1
+            fi
           fi
           # Release notes: the matching CHANGELOG.md section (or a short fallback) plus the npm status.
           awk -v ver="$VERSION" '
