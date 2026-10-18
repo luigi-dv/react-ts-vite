@@ -1,0 +1,18 @@
+---
+description: "What to test, where tests live and how to write them with Vitest and Testing Library."
+globs:
+alwaysApply: true
+---
+<!-- rtv:generated -->
+<!-- Generated from .agent/rules/testing.md by `npm run agent:sync`. -->
+
+# Testing
+
+- **Stack**: Vitest 5 (`happy-dom` environment, URL `http://localhost:3000/`), `@testing-library/react` 16, `@testing-library/jest-dom` matchers (loaded in `vitest.setup.ts`). `globals: true` is on, but import `describe/test/expect` from `vitest` explicitly for clarity.
+- **Location**: `__tests__/` mirrors `src/` (`__tests__/pages/Dashboard.test.tsx`, `__tests__/components/Button.test.tsx`). Script and library tests live in `__tests__/scripts/*.test.mjs`. Design templates are tested from `__tests__/templates/`.
+- **Every page has a smoke test** that renders it and asserts its `h1`. `npm run templates -- add <id>` generates it; keep it when you customise the page.
+- **Test behaviour, not implementation**: query by role and accessible name first (`getByRole('button', { name: /sign in/i })`), then label/text; avoid `data-testid` unless there is no accessible handle. Interact with `fireEvent` (or `@testing-library/user-event` if you add it) and assert visible outcomes.
+- **Isolate at the boundary**: mock services (`vi.mock('@services/http')`) or `fetch`, never React internals. Hooks are tested through the components that use them or with `renderHook`.
+- **Keep tests deterministic**: no real timers or network; use `vi.useFakeTimers()` when time matters; reset mocks in `afterEach`.
+- **Coverage** (`npm run coverage`, v8 provider) is a signal, not a target. Cover branches that matter: validation, error states, empty states, permissions.
+- **Run** `npm run test:run` (CI mode) before pushing; `npm test` watches while developing.

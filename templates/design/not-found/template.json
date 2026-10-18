@@ -1,0 +1,12 @@
+{
+  "id": "not-found",
+  "order": 5,
+  "title": "404 — Not found",
+  "description": "Friendly error page used as the fallback route for unknown paths.",
+  "page": "NotFound",
+  "route": "/404",
+  "fallback": true,
+  "heading": "Page not found",
+  "tags": ["error"],
+  "uses": []
+}

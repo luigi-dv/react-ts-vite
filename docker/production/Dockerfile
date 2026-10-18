@@ -1,19 +1,16 @@
-# ==== CONFIGURE =====
-# Use a Node 19 base image
-FROM node:19-alpine
-# Set the working directory to /app inside the container
-WORKDIR /app
-# Copy app files
-COPY . .
 # ==== BUILD =====
-# Install dependencies (npm ci makes sure the exact versions in the lockfile gets installed)
-RUN npm ci
-# Build the app
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci --ignore-scripts
+COPY . .
+# Type-check and build the static bundle into /app/dist
 RUN npm run build
+
 # ==== RUN =======
-# Set the env to "production"
-ENV NODE_ENV production
-# Expose the port on which the app will be running (3000 is the default that `serve` uses)
+# Serve the static bundle with nginx (SPA fallback, gzip, immutable asset caching)
+FROM nginx:1.27-alpine
+COPY docker/production/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 3000
-# Start the app
-CMD npm run preview
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1

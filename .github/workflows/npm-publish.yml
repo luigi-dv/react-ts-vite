@@ -1,33 +1,85 @@
-# This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
-# For more information see: https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
-
+# Publishes the package to npm (with provenance) when a GitHub release is published,
+# then asks Claude for a deployment report and appends it to the release notes.
+# Secrets: npm_token (required), ANTHROPIC_API_KEY (optional — the report is skipped without it).
 name: Node.js Package
 
 on:
   release:
-    types: [created]
+    types: [published]
+
+env:
+  HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 16
+          node-version-file: .nvmrc
+          cache: npm
       - run: npm ci
-      - run: npm test
+      - run: npm run check
+      - run: npm run build
 
   publish-npm:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 16
+          node-version-file: .nvmrc
           registry-url: https://registry.npmjs.org/
-      - run: npm ci
-      - run: npm publish
+      - run: npm ci --ignore-scripts
+      - run: npm publish --provenance --access public
         env:
-          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
+
+  insights:
+    name: Claude deployment insights
+    needs: publish-npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Skip when no API key is configured
+        if: env.HAS_ANTHROPIC_KEY != 'true'
+        run: echo "::notice::Add an ANTHROPIC_API_KEY secret to enable the Claude deployment report."
+      - uses: actions/checkout@v5
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - if: env.HAS_ANTHROPIC_KEY == 'true'
+        run: |
+          npm ci
+          npm install --no-save @anthropic-ai/sdk
+          npm run build
+      - name: Generate the report with Claude
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RTV_DEPLOY_URL: ${{ github.event.release.html_url }}
+          RTV_DEPLOY_ENV: npm release ${{ github.event.release.tag_name }}
+        run: node bin/rtv.mjs insights --mode api
+      - name: Append the report to the release notes
+        if: env.HAS_ANTHROPIC_KEY == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          {
+            gh release view "$TAG" --json body -q .body
+            printf '\n\n## Claude deployment insights\n\n'
+            cat deployment-insights.md
+          } > release-notes.md
+          gh release edit "$TAG" --notes-file release-notes.md

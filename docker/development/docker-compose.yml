@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   React.Typescript.Vite:
     build:
@@ -8,3 +6,9 @@ services:
     image: react.typescript.vite.development
     ports:
       - '3000:3000'
+    # Hot reload: mount the source, keep the container's node_modules
+    volumes:
+      - ../../:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true

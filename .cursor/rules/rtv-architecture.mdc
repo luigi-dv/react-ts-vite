@@ -1,0 +1,66 @@
+---
+description: "The active folder architecture, its layers, aliases and import rules. Generated from rtv.config.json by `npm run arch`."
+globs:
+alwaysApply: true
+---
+<!-- rtv:generated -->
+<!-- Generated from .agent/rules/architecture.md by `npm run agent:sync`. -->
+
+# Architecture rule
+
+This project uses the **Classic** architecture (`classic`): Folders by technical role: components, hooks, services, pages.
+
+- Place new code in the layer whose purpose matches it (see the table below). Never create new top-level folders under `src/` without updating the architecture catalogue (`scripts/lib/architectures.mjs`).
+- Import through the path aliases listed below (`@components/Button`, `@pages/Dashboard`). Never use parent-relative imports (`../`); the ESLint rule `no-restricted-imports` enforces this.
+- Respect the layer dependency direction. Run `npm run arch:check` before finishing a task; it fails on any forbidden import.
+- Applied design templates: none. Pages live in `src/pages/`, each with a smoke test in `__tests__/pages/`.
+- To switch architecture run `npm run arch -- apply <id>` (never move folders by hand). Project root: `react-ts-vite`.
+
+## Classic (`classic`) — layered by type
+
+The simplest mental model. Code is grouped by what it *is* (a component, a hook, a service) rather than by what it does. Zero ceremony, instantly familiar to every React developer.
+
+```
+src/
+├── assets/
+├── components/
+├── const/
+├── hooks/
+├── pages/
+├── services/
+├── types/
+└── utils/
+```
+
+| Layer | Path | Purpose | May import |
+| --- | --- | --- | --- |
+| `pages` | `src/pages` | Route-level screens. Compose UI, read data through hooks and own page state. | `pages`, `components`, `hooks`, `services`, `types`, `const`, `utils`, `assets` |
+| `components` | `src/components` | Reusable, presentational UI. Receives data through props and never talks to services directly. | `components`, `hooks`, `types`, `const`, `utils`, `assets` |
+| `hooks` | `src/hooks` | Stateful logic and data access (`useSomething`). The bridge between UI and services. | `hooks`, `services`, `types`, `const`, `utils` |
+| `services` | `src/services` | Side effects: API clients, storage, analytics. Framework-agnostic — no React here. | `services`, `types`, `const`, `utils` |
+| `utils` | `src/utils` | Pure, framework-agnostic helpers. No side effects. | `utils`, `types`, `const` |
+| `const` | `src/const` | Constants and configuration: navigation, routes, feature flags, environment access. | `const`, `types` |
+| `types` | `src/types` | Shared TypeScript types and interfaces. | `types` |
+| `assets` | `src/assets` | Static assets imported by code: images, fonts, SVG. | — |
+
+**Aliases**
+
+- `@` → `src`
+- `@assets` → `src/assets`
+- `@components` → `src/components`
+- `@const` → `src/const`
+- `@hooks` → `src/hooks`
+- `@pages` → `src/pages`
+- `@services` → `src/services`
+- `@types` → `src/types`
+- `@utils` → `src/utils`
+
+**Principles**
+
+- Dependencies flow downwards: pages → components → hooks → services → utils/const/types.
+- Components never import services; data access lives in hooks.
+- Every folder exposes an `index.ts` barrel when it has more than one public module.
+
+**Best for:** Small and medium apps · Prototypes and MVPs · Teams new to front-end architecture
+
+**Trade-offs:** Folders grow wide as features multiply · Code for one feature is spread across several folders
